@@ -8,7 +8,6 @@ import { toast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
 
@@ -17,15 +16,6 @@ const Index = () => {
       toast({
         title: "Prompt required",
         description: "Please enter a description for your image",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!apiKey.trim()) {
-      toast({
-        title: "API Key required",
-        description: "Please enter your Hugging Face API key",
         variant: "destructive",
       });
       return;
@@ -40,7 +30,6 @@ const Index = () => {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ inputs: prompt }),
@@ -101,31 +90,6 @@ const Index = () => {
         <div className="grid md:grid-cols-2 gap-8 animate-in fade-in duration-1000 delay-300">
           {/* Input Section */}
           <Card className="p-6 space-y-6 backdrop-blur-sm bg-card/50 border-2 border-border hover:border-primary/50 transition-all duration-300">
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-primary" />
-                Hugging Face API Key
-              </label>
-              <Input
-                type="password"
-                placeholder="hf_..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="bg-background/50"
-              />
-              <p className="text-xs text-muted-foreground">
-                Get your free API key from{" "}
-                <a
-                  href="https://huggingface.co/settings/tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Hugging Face
-                </a>
-              </p>
-            </div>
-
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-accent" />
