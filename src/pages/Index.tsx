@@ -1,17 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, Download, Image as ImageIcon } from "lucide-react";
+import { Loader2, Sparkles, Download, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { useHuggingFace } from "@/hooks/useHuggingFace";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const { 
+    data, 
+    loading: isGenerating, 
+    error: generationError, 
+    generateImage,
+    checkApiKey
+  } = useHuggingFace();
 
-  const generateImage = async () => {
+  // Check API key on component mount
+  useEffect(() => {
+    if (!checkApiKey()) {
+      setApiError('Hugging Face API key is not configured. Please check your .env file.');
+    } else {
+      setApiError(null);
+    }
+  }, [checkApiKey]);
+
+  // Handle generation errors
+  useEffect(() => {
+    if (generationError) {
+      toast({
+        title: "Generation failed",
+        description: generationError,
+        variant: "destructive",
+      });
+    }
+  }, [generationError]);
+
+  const handleGenerate = async () => {
     if (!prompt.trim()) {
       toast({
         title: "Prompt required",
@@ -21,73 +48,63 @@ const Index = () => {
       return;
     }
 
-    setIsGenerating(true);
-    setGeneratedImage(null);
-
     try {
-      const response = await fetch(
-        "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ inputs: prompt }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+      const result = await generateImage(prompt);
+      if (result?.url) {
+        toast({
+          title: "Success!",
+          description: "Your image has been generated",
+        });
       }
-
-      const blob = await response.blob();
-      const imageUrl = URL.createObjectURL(blob);
-      setGeneratedImage(imageUrl);
-      
-      toast({
-        title: "Success!",
-        description: "Your image has been generated",
-      });
     } catch (error) {
-      console.error("Error generating image:", error);
-      toast({
-        title: "Generation failed",
-        description: "Please check your API key and try again",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
+      // Error is already handled by the hook
+      console.error("Generation error:", error);
     }
   };
 
   const downloadImage = () => {
-    if (generatedImage) {
+    if (data?.url) {
       const a = document.createElement("a");
-      a.href = generatedImage;
+      a.href = data.url;
       a.download = `ai-generated-${Date.now()}.png`;
       a.click();
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-4 pt-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-primary">AI Image Generator</span>
-          </div>
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-1 container mx-auto px-4 py-8">
+        <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-in fade-in slide-in-from-bottom-4 duration-1000 leading-tight">
             Create Stunning Images
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-150">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mt-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-150">
             Transform your ideas into beautiful images using AI
           </p>
         </div>
 
+        {/* API Key Error Alert */}
+        {apiError && (
+          <Alert variant="destructive" className="mb-8 max-w-3xl mx-auto">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>API Key Error</AlertTitle>
+            <AlertDescription className="text-left">
+              <p className="mb-2">{apiError}</p>
+              <p className="text-sm">
+                Create a <code className="bg-muted px-1 rounded">.env</code> file in your project root with:
+              </p>
+              <pre className="bg-muted p-2 rounded mt-2 overflow-x-auto text-sm">
+                VITE_HUGGINGFACE_API_KEY=your_api_key_here
+              </pre>
+              <p className="mt-2 text-sm">
+                Then restart your development server.
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Main Content */}
-        <div className="grid md:grid-cols-2 gap-8 animate-in fade-in duration-1000 delay-300">
+        <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto animate-in fade-in duration-1000 delay-300">
           {/* Input Section */}
           <Card className="p-6 space-y-6 backdrop-blur-sm bg-card/50 border-2 border-border hover:border-primary/50 transition-all duration-300">
             <div className="space-y-2">
@@ -100,23 +117,24 @@ const Index = () => {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 className="min-h-[200px] bg-background/50 resize-none"
+                disabled={!!apiError}
               />
             </div>
 
             <Button
-              onClick={generateImage}
-              disabled={isGenerating}
+              onClick={handleGenerate}
+              disabled={isGenerating || !!apiError}
               className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
               size="lg"
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
                   Generating...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" />
+                  <Sparkles className="w-5 h-5 mr-2" />
                   Generate Image
                 </>
               )}
@@ -137,10 +155,10 @@ const Index = () => {
                     <Loader2 className="w-12 h-12 animate-spin text-primary" />
                     <p className="text-sm text-muted-foreground">Creating your image...</p>
                   </div>
-                ) : generatedImage ? (
+                ) : data?.url ? (
                   <img
-                    src={generatedImage}
-                    alt="Generated"
+                    src={data.url}
+                    alt="Generated from prompt"
                     className="w-full h-full object-contain animate-in fade-in duration-500"
                   />
                 ) : (
@@ -151,20 +169,20 @@ const Index = () => {
                 )}
               </div>
 
-              {generatedImage && !isGenerating && (
+              {data?.url && !isGenerating && (
                 <Button
                   onClick={downloadImage}
                   variant="outline"
                   className="w-full border-primary/50 hover:bg-primary/10"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4 mr-2" />
                   Download Image
                 </Button>
               )}
             </div>
           </Card>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
